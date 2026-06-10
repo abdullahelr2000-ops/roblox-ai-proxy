@@ -7,26 +7,12 @@ app.use(cors());
 app.use(express.json());
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const GROK_API_KEY = process.env.GROK_API_KEY;
 
-// Change this to "openai" or "gemini" to switch!
-const AI_PROVIDER = process.env.AI_PROVIDER || "openai";
+// Change this to "grok" or "gemini" to switch!
+const AI_PROVIDER = process.env.AI_PROVIDER || "grok";
 
-app.post("/generate", async (req, res) => {
-  const { prompt } = req.body;
-
-  try {
-    let text;
-
-    if (AI_PROVIDER === "openai") {
-      const response = await axios.post(
-        "https://api.openai.com/v1/chat/completions",
-        {
-          model: "gpt-4o-mini",
-          messages: [
-            {
-              role: "system",
-              content: `You are an expert Roblox developer. When given a request, respond ONLY with a valid JSON object (no markdown, no backticks, no explanation) in this exact format:
+const SYSTEM_PROMPT = `You are an expert Roblox developer. When given a request, respond ONLY with a valid JSON object (no markdown, no backticks, no explanation) in this exact format:
 {
   "instances": [
     {
@@ -46,14 +32,27 @@ app.post("/generate", async (req, res) => {
       "source": "lua code here"
     }
   ]
-}`
-            },
+}`;
+
+app.post("/generate", async (req, res) => {
+  const { prompt } = req.body;
+
+  try {
+    let text;
+
+    if (AI_PROVIDER === "grok") {
+      const response = await axios.post(
+        "https://api.x.ai/v1/chat/completions",
+        {
+          model: "grok-3-mini",
+          messages: [
+            { role: "system", content: SYSTEM_PROMPT },
             { role: "user", content: prompt }
           ]
         },
         {
           headers: {
-            "Authorization": `Bearer ${OPENAI_API_KEY}`,
+            "Authorization": `Bearer ${GROK_API_KEY}`,
             "Content-Type": "application/json"
           }
         }
