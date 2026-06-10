@@ -7,10 +7,9 @@ app.use(cors());
 app.use(express.json());
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GROK_API_KEY = process.env.GROK_API_KEY;
 
 // Change this to "grok" or "gemini" to switch!
-const AI_PROVIDER = process.env.AI_PROVIDER || "grok";
+const AI_PROVIDER = process.env.AI_PROVIDER || "gemini";
 
 const SYSTEM_PROMPT = `You are an expert Roblox developer. When given a request, respond ONLY with a valid JSON object (no markdown, no backticks, no explanation) in this exact format:
 {
