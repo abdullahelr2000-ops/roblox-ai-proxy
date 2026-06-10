@@ -19,7 +19,7 @@ const SYSTEM_PROMPT = `You are an expert Roblox developer. When given a request,
       "name": "ObjectName",
       "parent": "Workspace",
       "properties": {
-        "PropertyName": value
+        "PropertyName": "value"
       }
     }
   ],
@@ -37,43 +37,34 @@ app.post("/generate", async (req, res) => {
   const { prompt } = req.body;
 
   try {
-    let text;
-
-    if (AI_PROVIDER === "grok") {
-      const response = await axios.post(
-        "https://api.x.ai/v1/chat/completions",
-        {
-          model: "grok-3-mini",
-          messages: [
-            { role: "system", content: SYSTEM_PROMPT },
-            { role: "user", content: prompt }
-          ]
-        },
-        {
-          headers: {
-            "Authorization": `Bearer ${GROK_API_KEY}`,
-            "Content-Type": "application/json"
+    const response = await axios.post(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        contents: [
+          { 
+            role: "user", 
+            parts: [{ text: `${SYSTEM_PROMPT}\n\nUser Request: ${prompt}` }] 
           }
+        ]
+      },
+      {
+        headers: {
+          "Content-Type": "application/json"
         }
-      );
-      text = response.data.choices[0].message.content;
+      }
+    );
 
-    } else {
-      const response = await axios.post(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
-        {
-          contents: [{ parts: [{ text: prompt }] }]
-        }
-      );
-      text = response.data.candidates[0].content.parts[0].text;
-    }
-
+    const text = response.data.candidates[0].content.parts[0].text;
     const clean = text.replace(/```json|```/g, "").trim();
     const parsed = JSON.parse(clean);
+    
     res.json(parsed);
 
   } catch (err) {
-    console.error(err.message);
+    console.error("API Error:", err.message);
+    if (err.response && err.response.data) {
+       console.error("Details:", err.response.data);
+    }
     res.status(500).json({ error: err.message });
   }
 });
