@@ -7,45 +7,69 @@ app.use(cors());
 app.use(express.json());
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+
+// Change this to "openai" or "gemini" to switch!
+const AI_PROVIDER = process.env.AI_PROVIDER || "openai";
 
 app.post("/generate", async (req, res) => {
   const { prompt } = req.body;
 
   try {
-    const response = await axios.post(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        contents: [{ parts: [{ text: prompt }] }],
-        systemInstruction: {
-          parts: [{
-            text: `You are an expert Roblox developer. When given a request, respond ONLY with a valid JSON object (no markdown, no backticks, no explanation) in this exact format:
+    let text;
+
+    if (AI_PROVIDER === "openai") {
+      const response = await axios.post(
+        "https://api.openai.com/v1/chat/completions",
+        {
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content: `You are an expert Roblox developer. When given a request, respond ONLY with a valid JSON object (no markdown, no backticks, no explanation) in this exact format:
 {
   "instances": [
     {
       "type": "ClassName",
-      "name": "ObjectName", 
-      "parent": "Workspace or Script name",
+      "name": "ObjectName",
+      "parent": "Workspace",
       "properties": {
         "PropertyName": value
-      },
-      "children": []
+      }
     }
   ],
   "scripts": [
     {
       "type": "Script or LocalScript",
       "name": "ScriptName",
-      "parent": "ObjectName",
+      "parent": "Workspace",
       "source": "lua code here"
     }
   ]
 }`
-          }]
+            },
+            { role: "user", content: prompt }
+          ]
+        },
+        {
+          headers: {
+            "Authorization": `Bearer ${OPENAI_API_KEY}`,
+            "Content-Type": "application/json"
+          }
         }
-      }
-    );
+      );
+      text = response.data.choices[0].message.content;
 
-    const text = response.data.candidates[0].content.parts[0].text;
+    } else {
+      const response = await axios.post(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+        {
+          contents: [{ parts: [{ text: prompt }] }]
+        }
+      );
+      text = response.data.candidates[0].content.parts[0].text;
+    }
+
     const clean = text.replace(/```json|```/g, "").trim();
     const parsed = JSON.parse(clean);
     res.json(parsed);
@@ -57,5 +81,5 @@ app.post("/generate", async (req, res) => {
 });
 
 app.listen(3000, () => {
-  console.log("Server running on port 3000");
+  console.log(`Server running on port 3000 using ${AI_PROVIDER}`);
 });
