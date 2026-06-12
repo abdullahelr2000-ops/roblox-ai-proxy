@@ -50,9 +50,9 @@ app.post('/generate', async (req, res) => {
             parts: [{ text: userPrompt }]
         });
 
-        // 2. Send the entire conversation history to Gemini using the corrected stable endpoint path
+        // 2. Send the conversation history using the definitive, supported endpoint path
         const response = await axios.post(
-            `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
             { contents: chatHistory },
             { headers: { 'Content-Type': 'application/json' } }
         );
