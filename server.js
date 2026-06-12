@@ -9,31 +9,37 @@ app.use(express.json());
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const AI_PROVIDER = process.env.AI_PROVIDER || "gemini";
 
-const SYSTEM_PROMPT = `You are an expert Roblox developer. When given a request, respond ONLY with a valid JSON object (no markdown, no backticks, no explanation) in this exact format:
+const SYSTEM_PROMPT = `You are an advanced, context-aware AI compiler for Roblox Studio. Your job is to analyze the user's workspace context and generate an exact sequence of structural mutations.
+You must return ONLY a valid JSON object. No conversational text, no explanations, no markdown formatting blocks.
+
+RESPONSE JSON FORMAT:
 {
-  "instances": [
+  "actions": [
     {
-      "type": "ClassName",
-      "name": "ObjectName",
-      "parent": "Workspace",
+      "action": "create" or "update" or "delete",
+      "targetType": "Instance" or "Script" or "LocalScript",
+      "className": "Part",
+      "name": "TargetObjectName",
+      "parentName": "Workspace",
       "properties": {
-        "PropertyName": "value"
-      }
-    }
-  ],
-  "scripts": [
-    {
-      "type": "Script or LocalScript",
-      "name": "ScriptName",
-      "parent": "Workspace",
-      "source": "lua code here"
+        "Size": [10, 5, 10],
+        "Position": [0, 50, -12],
+        "Color": [255, 165, 0],
+        "Material": "Neon",
+        "Anchored": true,
+        "Transparency": 0.5
+      },
+      "source": "-- lua script source code here (only if targetType is Script or LocalScript)"
     }
   ]
 }
 
-CRITICAL RULES:
-1. If the user provides "Selected Context" and asks to modify or add behavior to an existing object, match its "name" exactly in your response. Do not create a duplicate instance if it already exists; just target its name and specify the modified properties or parent the new script inside it.
-2. Ensure scripts use proper Luau programming syntax for Roblox Studio.`;
+DATA TRANSFORMATION RULES:
+1. Vector3 properties (Size, Position, or Orientation) MUST be specified as a 3-element numeric array: [X, Y, Z].
+2. Color3 properties (Color) MUST be specified as a 3-element integer array from 0 to 255: [R, G, B].
+3. Enums (Material, Shape, etc.) MUST be a string name matching the Roblox Enum value (e.g., "Neon", "Glass", "SmoothPlastic").
+4. If modifying an existing object passed in the [Selected Context], use action "update", match its target name precisely, and ONLY include properties that need changing. Do not re-create it.
+5. If changing a script or functionality of an object, you can "delete" an old script name, or "create" a new script with the updated source code parented to that object. Make scripts clean, professional, and performance-optimized.`;
 
 app.post("/generate", async (req, res) => {
   const { prompt, context } = req.body;
@@ -43,10 +49,9 @@ app.post("/generate", async (req, res) => {
     return res.status(500).json({ error: "Server misconfiguration: Missing API Key." });
   }
 
-  // Inject the selection context into the AI prompt
   let contextSnippet = "";
   if (context && context.length > 0) {
-    contextSnippet = `\n\n[Selected Context] The user currently has these objects SELECTED in Roblox Studio:\n${JSON.stringify(context, null, 2)}\nUse this context to modify these items or attach scripts inside them if requested.`;
+    contextSnippet = `\n\n[Selected Context] The user has highlighted the following elements in Roblox Studio:\n${JSON.stringify(context, null, 2)}\nModify or interact with these objects directly based on their current property vectors.`;
   }
 
   try {
@@ -64,9 +69,7 @@ app.post("/generate", async (req, res) => {
         }
       },
       {
-        headers: {
-          "Content-Type": "application/json"
-        }
+        headers: { "Content-Type": "application/json" }
       }
     );
 
@@ -76,19 +79,19 @@ app.post("/generate", async (req, res) => {
       const parsed = JSON.parse(text.trim());
       res.json(parsed);
     } catch (parseErr) {
-      console.error("Failed to parse AI response as JSON. Raw text:", text);
-      res.status(500).json({ error: "AI output was not valid JSON structure." });
+      console.error("Malformed payload from AI engine. Raw text:", text);
+      res.status(500).json({ error: "AI response failed structure validation." });
     }
 
   } catch (err) {
-    console.error("API Error:", err.message);
+    console.error("API Gateway Exception:", err.message);
     if (err.response && err.response.data) {
-       console.error("Details:", JSON.stringify(err.response.data));
+       console.error("Payload Details:", JSON.stringify(err.response.data));
     }
     res.status(500).json({ error: err.message });
   }
 });
 
 app.listen(3000, () => {
-  console.log(`Server running on port 3000 using ${AI_PROVIDER}`);
+  console.log(`Ultimate Proxy operational on port 3000 [Backend: ${AI_PROVIDER}]`);
 });
