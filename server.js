@@ -7,8 +7,6 @@ app.use(cors());
 app.use(express.json());
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-
-// Change this to "grok" or "gemini" to switch!
 const AI_PROVIDER = process.env.AI_PROVIDER || "gemini";
 
 const SYSTEM_PROMPT = `You are an expert Roblox developer. When given a request, respond ONLY with a valid JSON object (no markdown, no backticks, no explanation) in this exact format:
@@ -31,21 +29,39 @@ const SYSTEM_PROMPT = `You are an expert Roblox developer. When given a request,
       "source": "lua code here"
     }
   ]
-}`;
+}
+
+CRITICAL RULES:
+1. If the user provides "Selected Context" and asks to modify or add behavior to an existing object, match its "name" exactly in your response. Do not create a duplicate instance if it already exists; just target its name and specify the modified properties or parent the new script inside it.
+2. Ensure scripts use proper Luau programming syntax for Roblox Studio.`;
 
 app.post("/generate", async (req, res) => {
-  const { prompt } = req.body;
+  const { prompt, context } = req.body;
+
+  if (!GEMINI_API_KEY) {
+    console.error("Missing GEMINI_API_KEY environment variable.");
+    return res.status(500).json({ error: "Server misconfiguration: Missing API Key." });
+  }
+
+  // Inject the selection context into the AI prompt
+  let contextSnippet = "";
+  if (context && context.length > 0) {
+    contextSnippet = `\n\n[Selected Context] The user currently has these objects SELECTED in Roblox Studio:\n${JSON.stringify(context, null, 2)}\nUse this context to modify these items or attach scripts inside them if requested.`;
+  }
 
   try {
     const response = await axios.post(
-     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
       {
         contents: [
           { 
             role: "user", 
-            parts: [{ text: `${SYSTEM_PROMPT}\n\nUser Request: ${prompt}` }] 
+            parts: [{ text: `${SYSTEM_PROMPT}${contextSnippet}\n\nUser Request: ${prompt}` }] 
           }
-        ]
+        ],
+        generationConfig: {
+          responseMimeType: "application/json"
+        }
       },
       {
         headers: {
@@ -55,15 +71,19 @@ app.post("/generate", async (req, res) => {
     );
 
     const text = response.data.candidates[0].content.parts[0].text;
-    const clean = text.replace(/```json|```/g, "").trim();
-    const parsed = JSON.parse(clean);
     
-    res.json(parsed);
+    try {
+      const parsed = JSON.parse(text.trim());
+      res.json(parsed);
+    } catch (parseErr) {
+      console.error("Failed to parse AI response as JSON. Raw text:", text);
+      res.status(500).json({ error: "AI output was not valid JSON structure." });
+    }
 
   } catch (err) {
     console.error("API Error:", err.message);
     if (err.response && err.response.data) {
-       console.error("Details:", err.response.data);
+       console.error("Details:", JSON.stringify(err.response.data));
     }
     res.status(500).json({ error: err.message });
   }
