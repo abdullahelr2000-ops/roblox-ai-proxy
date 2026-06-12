@@ -18,31 +18,29 @@ RESPONSE JSON FORMAT:
     {
       "action": "create" or "update" or "delete",
       "targetType": "Instance" or "Script" or "LocalScript",
-      "className": "Part",
+      "className": "Part" or "ProximityPrompt" or "Sound" etc.,
       "name": "TargetObjectName",
-      "parentName": "Workspace",
+      "parentName": "Workspace", 
       "properties": {
         "Size": [10, 5, 10],
         "Position": [0, 50, -12],
         "Color": [255, 165, 0],
         "Material": "Neon",
-        "Anchored": true,
-        "Transparency": 0.5
+        "Anchored": true
       },
-      "source": "-- lua script source code here (only if targetType is Script or LocalScript)"
+      "source": "-- lua script source code here"
     }
   ]
 }
 
-DATA TRANSFORMATION RULES:
-1. Vector3 properties (Size, Position, or Orientation) MUST be specified as a 3-element numeric array: [X, Y, Z].
-2. Color3 properties (Color) MUST be specified as a 3-element integer array from 0 to 255: [R, G, B].
-3. Enums (Material, Shape, etc.) MUST be a string name matching the Roblox Enum value (e.g., "Neon", "Glass", "SmoothPlastic").
-4. If modifying an existing object passed in the [Selected Context], use action "update", match its target name precisely, and ONLY include properties that need changing. Do not re-create it.
-5. If changing a script or functionality of an object, you can "delete" an old script name, or "create" a new script with the updated source code parented to that object. Make scripts clean, professional, and performance-optimized.`;
+GLOBAL SEARCH RULES:
+1. You are provided with a [Global Workspace Context] listing existing items in the game.
+2. If the user explicitly mentions an object name to change (e.g., "make the 'Big part' yellow" or "add a sound to 'MyDoor'"), scan the global list for an exact name match.
+3. If a match is found in the global list, you MUST use the "update" action targeting that object's exact name. DO NOT use "create" to avoid making duplicates.
+4. You can update any aspect: Size, Position, Color, Material, Transparency, or add new scripts/sounds inside it by setting "parentName" to that object's name.`;
 
 app.post("/generate", async (req, res) => {
-  const { prompt, context } = req.body;
+  const { prompt, context, globalContext } = req.body;
 
   if (!GEMINI_API_KEY) {
     console.error("Missing GEMINI_API_KEY environment variable.");
@@ -51,7 +49,10 @@ app.post("/generate", async (req, res) => {
 
   let contextSnippet = "";
   if (context && context.length > 0) {
-    contextSnippet = `\n\n[Selected Context] The user has highlighted the following elements in Roblox Studio:\n${JSON.stringify(context, null, 2)}\nModify or interact with these objects directly based on their current property vectors.`;
+    contextSnippet += `\n\n[Selected Context] Currently highlighted elements:\n${JSON.stringify(context, null, 2)}`;
+  }
+  if (globalContext && globalContext.length > 0) {
+    contextSnippet += `\n\n[Global Workspace Context] All named items currently inside the game:\n${JSON.stringify(globalContext, null, 2)}`;
   }
 
   try {
@@ -64,13 +65,9 @@ app.post("/generate", async (req, res) => {
             parts: [{ text: `${SYSTEM_PROMPT}${contextSnippet}\n\nUser Request: ${prompt}` }] 
           }
         ],
-        generationConfig: {
-          responseMimeType: "application/json"
-        }
+        generationConfig: { responseMimeType: "application/json" }
       },
-      {
-        headers: { "Content-Type": "application/json" }
-      }
+      { headers: { "Content-Type": "application/json" } }
     );
 
     const text = response.data.candidates[0].content.parts[0].text;
@@ -85,9 +82,6 @@ app.post("/generate", async (req, res) => {
 
   } catch (err) {
     console.error("API Gateway Exception:", err.message);
-    if (err.response && err.response.data) {
-       console.error("Payload Details:", JSON.stringify(err.response.data));
-    }
     res.status(500).json({ error: err.message });
   }
 });
