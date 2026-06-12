@@ -1,12 +1,13 @@
 {
   "name": "roblox-ai-proxy",
   "version": "1.0.0",
-  "description": "",
+  "description": "Secure proxy bridge between Roblox Studio and the Google Gemini AI API",
   "main": "index.js",
   "scripts": {
+    "start": "node index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
+  "keywords": ["roblox", "gemini", "ai", "proxy"],
   "author": "",
   "license": "ISC",
   "type": "commonjs",

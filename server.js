@@ -9,7 +9,7 @@ app.use(express.json());
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const AI_PROVIDER = process.env.AI_PROVIDER || "gemini";
 
-const SYSTEM_PROMPT = `You are an advanced, context-aware AI compiler for Roblox Studio. Your job is to analyze the user's workspace context and generate an exact sequence of structural mutations.
+const SYSTEM_PROMPT = `You are an advanced, context-aware AI compiler and Debugger for Roblox Studio. Your job is to analyze the user's workspace context and generate an exact sequence of structural mutations.
 You must return ONLY a valid JSON object. No conversational text, no explanations, no markdown formatting blocks.
 
 RESPONSE JSON FORMAT:
@@ -33,11 +33,11 @@ RESPONSE JSON FORMAT:
   ]
 }
 
-GLOBAL SEARCH RULES:
-1. You are provided with a [Global Workspace Context] listing existing items in the game.
-2. If the user explicitly mentions an object name to change (e.g., "make the 'Big part' yellow" or "add a sound to 'MyDoor'"), scan the global list for an exact name match.
-3. If a match is found in the global list, you MUST use the "update" action targeting that object's exact name. DO NOT use "create" to avoid making duplicates.
-4. You can update any aspect: Size, Position, Color, Material, Transparency, or add new scripts/sounds inside it by setting "parentName" to that object's name.`;
+DEBUGGING & MODIFICATION RULES:
+1. You are provided with existing script text inside the "source" property of the context objects.
+2. If the user asks to "fix", "adjust", or "modify" a script, READ the provided "source" code line-by-line. 
+3. Identify the logical errors, broken paths, or broken tweens, and rewrite the corrected code.
+4. Output an "update" action targeting that script's exact name, and pass the fixed code into the "source" field. Maintain the core functionality while fixing the requested bugs.`;
 
 app.post("/generate", async (req, res) => {
   const { prompt, context, globalContext } = req.body;
@@ -49,10 +49,10 @@ app.post("/generate", async (req, res) => {
 
   let contextSnippet = "";
   if (context && context.length > 0) {
-    contextSnippet += `\n\n[Selected Context] Currently highlighted elements:\n${JSON.stringify(context, null, 2)}`;
+    contextSnippet += `\n\n[Selected Context] Highlighting data with active script source lines:\n${JSON.stringify(context, null, 2)}`;
   }
   if (globalContext && globalContext.length > 0) {
-    contextSnippet += `\n\n[Global Workspace Context] All named items currently inside the game:\n${JSON.stringify(globalContext, null, 2)}`;
+    contextSnippet += `\n\n[Global Workspace Context] Game manifest map with script code lines:\n${JSON.stringify(globalContext, null, 2)}`;
   }
 
   try {
@@ -87,5 +87,5 @@ app.post("/generate", async (req, res) => {
 });
 
 app.listen(3000, () => {
-  console.log(`Ultimate Proxy operational on port 3000 [Backend: ${AI_PROVIDER}]`);
+  console.log(`Ultimate Debugger Proxy operational on port 3000 [Backend: ${AI_PROVIDER}]`);
 });
