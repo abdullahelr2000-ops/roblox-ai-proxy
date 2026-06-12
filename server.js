@@ -38,33 +38,43 @@ app.post('/generate', async (req, res) => {
     }
 
     try {
+        // Prevent history memory from growing too large and crashing
+        if (chatHistory.length > 20) {
+            // Keep the system prompt instructions, but trim old middle history items
+            chatHistory = [chatHistory[0], chatHistory[1], ...chatHistory.slice(-6)];
+        }
+
         // 1. Add the user's latest request to the ongoing conversation memory
         chatHistory.push({
             role: "user",
             parts: [{ text: userPrompt }]
         });
 
-        // 2. Send the entire conversation history to Gemini so it has full context
+        // 2. Send the entire conversation history to Gemini using the corrected stable endpoint path
         const response = await axios.post(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+            `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
             { contents: chatHistory },
             { headers: { 'Content-Type': 'application/json' } }
         );
 
-        // 3. Extract the AI's reply
-        const aiReply = response.data.candidates[0].content.parts[0].text;
+        // 3. Extract the AI's reply safely
+        if (response.data && response.data.candidates && response.data.candidates[0].content) {
+            const aiReply = response.data.candidates[0].content.parts[0].text;
 
-        // 4. Add the AI's reply to the memory loop so it remembers its own code next time
-        chatHistory.push({
-            role: "model",
-            parts: [{ text: aiReply }]
-        });
+            // 4. Add the AI's reply to the memory loop so it remembers its own code next time
+            chatHistory.push({
+                role: "model",
+                parts: [{ text: aiReply }]
+            });
 
-        // 5. Send the code back to Roblox Studio
-        res.json({ code: aiReply });
+            // 5. Send the code back to Roblox Studio
+            return res.json({ code: aiReply });
+        } else {
+            throw new Error("Unexpected response structure from Gemini API");
+        }
 
     } catch (error) {
-        console.error("Error communicating with Gemini API:", error.response ? error.response.data : error.message);
+        console.error("Error communicating with Gemini API:", error.response ? JSON.stringify(error.response.data) : error.message);
         res.status(500).json({ error: "Failed to generate code from Gemini" });
     }
 });
