@@ -13,15 +13,15 @@ app.use(express.json());
 // Get your API key from Render's environment variables
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-// This object acts as the continuous "Memory" storage for your chat history
+// Strict system prompt forcing the AI to strictly output raw code only
 let chatHistory = [
     {
         role: "user",
-        parts: [{ text: "You are an expert Roblox Luau script writer. You are working continuously with the user inside Roblox Studio. Remember previous code you generated in this session. When the user says things like 'change it', 'make it rotate on the left side', or references 'this part', look back at the code you just generated and apply edits seamlessly instead of rewriting a brand new unrelated script." }]
+        parts: [{ text: "You are an expert Roblox Luau script writer working inside a Studio plugin context. Remember previous code from this session. CRITICAL REQUIREMENT: You must ONLY output raw, pure, executable Luau code. Do NOT wrap your response in markdown code blocks like ```lua and ```. Do NOT include any conversational text, explanations, greetings, or introductions. Your entire response must be 100% raw Luau code so the plugin can perform workspace operations successfully." }]
     },
     {
         role: "model",
-        parts: [{ text: "Understood. I will act as a continuous assistant, remembering all previous scripts and applying relative changes directly to them based on your instructions." }]
+        parts: [{ text: "-- Understood. Returning raw executable Luau code only. No markdown formatting, no text explanations." }]
     }
 ];
 
@@ -40,7 +40,6 @@ app.post('/generate', async (req, res) => {
     try {
         // Prevent history memory from growing too large and crashing
         if (chatHistory.length > 20) {
-            // Keep the system prompt instructions, but trim old middle history items
             chatHistory = [chatHistory[0], chatHistory[1], ...chatHistory.slice(-6)];
         }
 
@@ -50,7 +49,7 @@ app.post('/generate', async (req, res) => {
             parts: [{ text: userPrompt }]
         });
 
-        // 2. Send the conversation history using the active, modern gemini-2.5-flash model
+        // 2. Send the conversation history using the active gemini-2.5-flash model
         const response = await axios.post(
             `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
             { contents: chatHistory },
@@ -59,15 +58,18 @@ app.post('/generate', async (req, res) => {
 
         // 3. Extract the AI's reply safely
         if (response.data && response.data.candidates && response.data.candidates[0].content) {
-            const aiReply = response.data.candidates[0].content.parts[0].text;
+            let aiReply = response.data.candidates[0].content.parts[0].text;
 
-            // 4. Add the AI's reply to the memory loop so it remembers its own code next time
+            // FAILSAFE: Automatically strip out markdown boxes if Gemini accidentally includes them
+            aiReply = aiReply.replace(/```lua/gi, '').replace(/```/g, '').trim();
+
+            // 4. Add the cleaned reply to the memory loop
             chatHistory.push({
                 role: "model",
                 parts: [{ text: aiReply }]
             });
 
-            // 5. Send the code back to Roblox Studio
+            // 5. Send the clean code back to Roblox Studio
             return res.json({ code: aiReply });
         } else {
             throw new Error("Unexpected response structure from Gemini API");
