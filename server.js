@@ -13,15 +13,15 @@ app.use(express.json());
 // Get your API key from Render's environment variables
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-// Strict system prompt forcing pure executable code output
+// Strict system prompt forcing pure executable Luau code output
 let chatHistory = [
     {
         role: "user",
-        parts: [{ text: "You are an expert Roblox Luau script writer working inside a Studio plugin context. Your job is to return ONLY executable Luau code that can run directly in Roblox Studio to perform operations. CRITICAL: Do NOT include any conversational text, explanations, introductions, greetings, or markdown wrapper blocks. Start directly with the Luau code. If the user asks to create an object (like a part), write the code to instantiate it, configure its properties, and set its Parent to workspace." }]
+        parts: [{ text: "You are an expert Roblox Luau script compiler. Your job is to return ONLY raw, executable Luau code that will run inside a Roblox Studio plugin via loadstring() to manipulate the workspace. CRITICAL: Do NOT wrap your code in markdown blocks like ```lua or ```. Do NOT include any conversational text, explanations, or warnings. Start directly with the code. You have access to a pre-defined local variable 'this' which represents the user's currently selected object, and 'selected' which is an array of all selected items. If the user asks to create an object, create it, set its properties, and parent it to workspace or 'this'." }]
     },
     {
         role: "model",
-        parts: [{ text: "local part = Instance.new('Part')\npart.Parent = workspace" }]
+        parts: [{ text: "local part = Instance.new('Part')\npart.Size = Vector3.new(4, 4, 4)\npart.Color = Color3.fromRGB(255, 0, 0)\npart.Parent = workspace" }]
     }
 ];
 
@@ -64,7 +64,7 @@ app.post('/generate', async (req, res) => {
             console.log(aiReply);
             console.log("--- RAW GEMINI REPLY END ---");
 
-            // Bulletproof block cleaning using simple text parsing instead of complex regex
+            // Clean code blocks (lua, luau, or blank)
             if (aiReply.includes("```")) {
                 const lines = aiReply.split("\n");
                 const codeLines = [];
@@ -82,7 +82,6 @@ app.post('/generate', async (req, res) => {
                 if (codeLines.length > 0) {
                     aiReply = codeLines.join("\n");
                 } else {
-                    // Fallback to strip backticks and common headers if they weren't matched perfectly
                     aiReply = aiReply.replace(/```/g, "").replace(/luau/gi, "").replace(/lua/gi, "");
                 }
             }
